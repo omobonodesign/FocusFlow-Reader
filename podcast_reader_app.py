@@ -193,7 +193,7 @@ def display_sidebar_tools():
         st.session_state[READING_BOX_BG_COLOR] = colors["bg"]
         st.session_state[READING_BOX_TEXT_COLOR] = colors["text"]
         st.session_state[LAST_SELECTED_PRESET_NAME] = selected_preset
-        st.experimental_rerun()
+        st.rerun()
 
     bg_c = st.sidebar.color_picker("Sfondo Box:", st.session_state[READING_BOX_BG_COLOR], key="cp_bg")
     txt_c = st.sidebar.color_picker("Testo Box:", st.session_state[READING_BOX_TEXT_COLOR], key="cp_txt")
@@ -204,7 +204,7 @@ def display_sidebar_tools():
         # Potrebbe essere utile impostare LAST_SELECTED_PRESET_NAME a un valore "Personalizzato"
         # o semplicemente lasciare che il selectbox mostri l'ultimo preset scelto
         # e l'utente vede che i colori nei picker sono diversi.
-        st.experimental_rerun()
+        st.rerun()
     st.sidebar.caption("Modificando i colori, crei un tema personalizzato.")
 
     # 4. Stima del Tempo di Lettura
@@ -234,7 +234,7 @@ def display_sidebar_tools():
     )
     if focus_mode_toggled != st.session_state.get(FOCUS_MODE_ACTIVE, False):
         st.session_state[FOCUS_MODE_ACTIVE] = focus_mode_toggled
-        st.experimental_rerun()
+        st.rerun()
 
 def display_focused_reading_view():
     """Visualizza la modalità lettura focalizzata con navigazione."""
@@ -271,7 +271,7 @@ def display_focused_reading_view():
         if st.session_state.get(FOCUS_MODE_ACTIVE, False):
             if st.button("🔍 Esci dalla Modalità Focus", use_container_width=True):
                 st.session_state[FOCUS_MODE_ACTIVE] = False
-                st.experimental_rerun()
+                st.rerun()
 
     with col3:
         if st.button("Prossimo ➡️", use_container_width=True, key="btn_next", on_click=go_to_next_segment):
