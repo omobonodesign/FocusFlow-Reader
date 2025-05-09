@@ -1,2 +1,1 @@
-streamlit
-streamlit-keyboard
+streamlit>=1.30.0
