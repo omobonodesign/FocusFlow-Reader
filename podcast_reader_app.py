@@ -17,6 +17,7 @@ CURRENT_SEGMENT_INDEX = "current_segment_index"
 FONT_SIZE_PX = "font_size_px"
 USER_WPM = "user_wpm"
 UPLOADED_FILE_NAME = "uploaded_file_name"
+KEYBOARD_ACTION = "keyboard_action"
 
 READING_BOX_BG_COLOR = "reading_box_bg_color"
 READING_BOX_TEXT_COLOR = "reading_box_text_color"
@@ -45,6 +46,7 @@ def initialize_session_state():
         st.session_state[FONT_SIZE_PX] = DEFAULT_FONT_SIZE_PX
         st.session_state[USER_WPM] = DEFAULT_WPM
         st.session_state[UPLOADED_FILE_NAME] = None
+        st.session_state[KEYBOARD_ACTION] = None
 
         default_colors = THEME_PRESETS[DEFAULT_PRESET_NAME]
         st.session_state[READING_BOX_BG_COLOR] = default_colors["bg"]
@@ -66,6 +68,8 @@ def initialize_session_state():
         st.session_state[LAST_SELECTED_PRESET_NAME] = DEFAULT_PRESET_NAME
     if FOCUS_MODE_ACTIVE not in st.session_state:
         st.session_state[FOCUS_MODE_ACTIVE] = False
+    if KEYBOARD_ACTION not in st.session_state:
+        st.session_state[KEYBOARD_ACTION] = None
 
 
 def parse_and_style_annotations(text_segment: str) -> str:
@@ -125,6 +129,80 @@ def go_to_next_segment():
     total_segments = len(st.session_state.get(SEGMENTS, []))
     if current_index < total_segments - 1:
         st.session_state[CURRENT_SEGMENT_INDEX] = current_index + 1
+
+def exit_focus_mode():
+    """Esce dalla modalità focus."""
+    st.session_state[FOCUS_MODE_ACTIVE] = False
+
+# --- Funzioni per Gestione Tastiera ---
+def create_keyboard_listener():
+    """Crea un listener JavaScript per i tasti freccia e altri controlli da tastiera."""
+    keyboard_js = """
+    <script>
+    // Funzione che invia il codice del tasto al backend Streamlit
+    function sendKeyToStreamlit(keyCode) {
+        // Genera un campo nascosto con il valore del tasto premuto
+        const input = document.createElement('input');
+        input.name = 'keyboard_action';
+        input.value = keyCode;
+        input.style.display = 'none';
+        
+        // Trova il form di Streamlit e aggiungi il campo
+        const forms = parent.document.querySelectorAll('form');
+        const streamlitForm = Array.from(forms).find(f => f.action.includes('_stcore/stream'));
+        
+        if (streamlitForm) {
+            streamlitForm.appendChild(input);
+            
+            // Crea e clicca un pulsante nascosto per inviare il form
+            const button = document.createElement('button');
+            button.type = 'submit';
+            button.style.display = 'none';
+            streamlitForm.appendChild(button);
+            button.click();
+            
+            // Pulisci
+            streamlitForm.removeChild(input);
+            streamlitForm.removeChild(button);
+        }
+    }
+
+    // Listener per eventi da tastiera
+    document.addEventListener('keydown', function(e) {
+        // Invia solo i tasti che ci interessano
+        if (e.key === 'ArrowLeft') {
+            sendKeyToStreamlit('left');
+            e.preventDefault(); // Impedisce lo scrolling della pagina
+        } else if (e.key === 'ArrowRight') {
+            sendKeyToStreamlit('right');
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            sendKeyToStreamlit('escape');
+            e.preventDefault();
+        }
+    });
+    </script>
+    <div id="keyboard-listener-placeholder" style="display:none"></div>
+    """
+    
+    # Utilizza st.components.html per inserire lo script JavaScript
+    st.components.v1.html(keyboard_js, height=0)
+
+def handle_keyboard_action():
+    """Gestisce le azioni della tastiera se presenti."""
+    if 'keyboard_action' in st.query_params:
+        action = st.query_params['keyboard_action']
+        st.query_params.clear()
+        
+        if action == 'left':
+            go_to_previous_segment()
+            st.rerun()
+        elif action == 'right':
+            go_to_next_segment()
+            st.rerun()
+        elif action == 'escape' and st.session_state.get(FOCUS_MODE_ACTIVE, False):
+            exit_focus_mode()
+            st.rerun()
 
 # --- Funzioni di Styling per Modalità Focus ---
 def apply_focus_mode_styling():
@@ -230,11 +308,21 @@ def display_sidebar_tools():
         "Attiva Modalità Senza Distrazioni",
         value=st.session_state.get(FOCUS_MODE_ACTIVE, False),
         key="toggle_focus_mode",
-        help="Nasconde la sidebar e altri elementi. Clicca 'Esci dalla Modalità Focus' per uscire."
+        help="Nasconde la sidebar e altri elementi. Usa i tasti freccia per navigare e 'Esc' per uscire."
     )
     if focus_mode_toggled != st.session_state.get(FOCUS_MODE_ACTIVE, False):
         st.session_state[FOCUS_MODE_ACTIVE] = focus_mode_toggled
         st.rerun()
+        
+    # 6. Indicazioni sui controlli da tastiera
+    st.sidebar.divider()
+    st.sidebar.subheader("⌨️ Controlli da Tastiera")
+    st.sidebar.info("""
+    **Tasti freccia**: Naviga tra i segmenti
+    ← Precedente | → Successivo
+    
+    **Tasto Esc**: Esci dalla modalità focus
+    """)
 
 def display_focused_reading_view():
     """Visualizza la modalità lettura focalizzata con navigazione."""
@@ -269,9 +357,8 @@ def display_focused_reading_view():
         
         # Pulsante di uscita dalla modalità focus quando attiva
         if st.session_state.get(FOCUS_MODE_ACTIVE, False):
-            if st.button("🔍 Esci dalla Modalità Focus", use_container_width=True):
-                st.session_state[FOCUS_MODE_ACTIVE] = False
-                st.rerun()
+            if st.button("🔍 Esci dalla Modalità Focus", use_container_width=True, on_click=exit_focus_mode):
+                pass  # La funzione on_click gestisce l'azione
 
     with col3:
         if st.button("Prossimo ➡️", use_container_width=True, key="btn_next", on_click=go_to_next_segment):
@@ -299,6 +386,12 @@ def display_focused_reading_view():
 def main():
     st.set_page_config(page_title="Assistente Lettura Podcast", layout="wide", initial_sidebar_state="auto")
     initialize_session_state() # Assicura che lo stato sia inizializzato
+    
+    # Inserisci il listener da tastiera
+    create_keyboard_listener()
+    
+    # Gestisci eventuali azioni da tastiera
+    handle_keyboard_action()
 
     if st.session_state.get(FOCUS_MODE_ACTIVE, False):
         apply_focus_mode_styling()
